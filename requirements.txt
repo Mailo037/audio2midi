@@ -1,0 +1,10 @@
+# Python 3.10 oder 3.11 empfohlen (basic-pitch unterstützt 3.13 noch nicht)
+basic-pitch[onnx]==0.4.0
+onnxruntime
+yt-dlp[default]
+gradio>=5
+librosa
+soundfile
+matplotlib
+numpy
+setuptools<81   # resampy braucht pkg_resources
