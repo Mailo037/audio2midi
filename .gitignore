@@ -1,5 +1,7 @@
+/target/
 .venv/
 ausgabe/
 __pycache__/
-*.pyc
-audio2midi.zip
+*.zip
+docs/_test.*
+/dist/

@@ -1,0 +1,13 @@
+[package]
+name = "audio2midi-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "audio2midi"
+path = "src/main.rs"
+
+[dependencies]
+audio2midi-core = { path = "../core", features = ["download"] }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
