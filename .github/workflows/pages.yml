@@ -1,0 +1,59 @@
+# Baut die Browser-Version (WebAssembly) und veröffentlicht sie auf GitHub Pages.
+name: Web-Version
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm
+
+      - name: wasm-bindgen in der Version aus Cargo.lock installieren
+        run: |
+          VERSION=$(grep -A1 'name = "wasm-bindgen"' Cargo.lock | sed -n 2p | cut -d'"' -f2)
+          echo "wasm-bindgen $VERSION"
+          curl -fsSL "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/${VERSION}/wasm-bindgen-${VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+            | tar xz --strip-components=1 -C /usr/local/bin "wasm-bindgen-${VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" \
+            || cargo install wasm-bindgen-cli --version "$VERSION" --locked
+          wasm-bindgen --version
+
+      - name: binaryen (wasm-opt) installieren
+        run: sudo apt-get update -q && sudo apt-get install -y -q binaryen
+
+      - name: Web-Version bauen
+        run: ./build-web.sh
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

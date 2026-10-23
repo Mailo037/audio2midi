@@ -9,7 +9,7 @@ und liefert dieselben Noten wie das Python-Original.
 | Variante | Was geht | Installation |
 |---|---|---|
 | **Im Browser** – [mailo037.github.io/audio2midi](https://mailo037.github.io/audio2midi/) | Dateien umwandeln. Alles läuft lokal im Browser, nichts wird hochgeladen. | keine |
-| **Desktop-App** (Windows/Linux) | zusätzlich **Links** (YouTube, SoundCloud, Bandcamp …) | eine Datei herunterladen und starten |
+| **Desktop-App** (Windows/macOS/Linux) | zusätzlich **Links** (YouTube, SoundCloud, Bandcamp …) | eine Datei herunterladen und starten |
 | **Kommandozeile** `audio2midi` | alles, auch viele Dateien auf einmal | eine Datei |
 
 Fertige Programme liegen unter [Releases](https://github.com/Mailo037/audio2midi/releases).
@@ -52,7 +52,7 @@ Pro Datei entstehen `.mid`, Notenliste (`.csv`), Pianoroll (`.svg`), Audiospur u
 ```bash
 cargo run --release -p audio2midi-app        # Desktop-App
 cargo run --release -p audio2midi-cli -- …    # Kommandozeile
-./build-web.sh                                # Browser-Version nach docs/
+./build-web.sh                                # Browser-Version nach site/
 ```
 
 Linux braucht `libasound2-dev`. Für die Web-Version: `rustup target add wasm32-unknown-unknown` und
@@ -63,7 +63,8 @@ Linux braucht `libasound2-dev`. Für die Web-Version: `rustup target add wasm32-
 | `crates/core` | Audio dekodieren, Modell (tract/ONNX), Notenerkennung, Nachbearbeitung, MIDI/CSV/SVG/WAV |
 | `crates/app` | Oberfläche (egui), läuft nativ und als WebAssembly |
 | `crates/cli` | Kommandozeile |
-| `docs/` | gebaute Web-Version für GitHub Pages |
+| `web/` | HTML-Gerüst der Web-Version |
+| `.github/workflows` | baut bei jedem Push die Web-Version (GitHub Pages) und die Programme für Windows, Linux und macOS |
 
 ## Tipps
 

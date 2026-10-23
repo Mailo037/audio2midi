@@ -3,5 +3,5 @@
 ausgabe/
 __pycache__/
 *.zip
-docs/_test.*
+/site/
 /dist/
