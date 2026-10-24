@@ -78,14 +78,14 @@ fn no_window(cmd: &mut Command) -> &mut Command {
 /// Aktuelle yt-dlp-Version von GitHub laden (nutzt das System-`curl`, auch unter Windows 10+ vorhanden).
 pub fn install_ytdlp() -> Result<PathBuf> {
     let dir = data_dir();
-    std::fs::create_dir_all(&dir).with_context(|| format!("Kann {} nicht anlegen", dir.display()))?;
+    std::fs::create_dir_all(&dir).with_context(|| format!("Cannot create {}", dir.display()))?;
     let dst = dir.join(EXE);
     let url = format!("https://github.com/yt-dlp/yt-dlp/releases/latest/download/{}", release_asset());
     let status = no_window(Command::new("curl").args(["-fsSL", "--retry", "3", "-o"]).arg(&dst).arg(&url))
         .status()
-        .context("curl wurde nicht gefunden – bitte yt-dlp manuell installieren")?;
+        .context("curl not found – please install yt-dlp manually")?;
     if !status.success() || !dst.is_file() {
-        bail!("yt-dlp konnte nicht heruntergeladen werden ({url})");
+        bail!("yt-dlp could not be downloaded ({url})");
     }
     #[cfg(unix)]
     {
@@ -107,7 +107,7 @@ pub fn download(url: &str, opts: &LinkOptions, mut progress: impl FnMut(f32, &st
     let ytdlp = match find_ytdlp() {
         Some(p) => p,
         None => {
-            progress(0.0, "Lade yt-dlp herunter (einmalig) …");
+            progress(0.0, "Downloading yt-dlp (one-time) …");
             install_ytdlp()?
         }
     };
@@ -135,7 +135,7 @@ pub fn download(url: &str, opts: &LinkOptions, mut progress: impl FnMut(f32, &st
         cmd.args(["--cookies-from-browser", b]);
     }
     cmd.arg(url).stdout(Stdio::piped()).stderr(Stdio::piped());
-    let mut child = no_window(&mut cmd).spawn().with_context(|| format!("Kann {} nicht starten", ytdlp.display()))?;
+    let mut child = no_window(&mut cmd).spawn().with_context(|| format!("Cannot start {}", ytdlp.display()))?;
 
     let stderr = child.stderr.take().unwrap();
     let err_thread = std::thread::spawn(move || {
@@ -150,7 +150,7 @@ pub fn download(url: &str, opts: &LinkOptions, mut progress: impl FnMut(f32, &st
     for line in BufReader::new(child.stdout.take().unwrap()).lines().map_while(|l| l.ok()) {
         if let Some(p) = line.strip_prefix("PROG ") {
             if let Ok(v) = p.trim().trim_end_matches('%').parse::<f32>() {
-                progress(v / 100.0, "Lade Audio herunter …");
+                progress(v / 100.0, "Downloading audio …");
             }
         } else if let Some(f) = line.strip_prefix("FILE ") {
             file = Some(PathBuf::from(f.trim()));
@@ -164,15 +164,15 @@ pub fn download(url: &str, opts: &LinkOptions, mut progress: impl FnMut(f32, &st
         let msg = errors.lines().filter(|l| l.contains("ERROR")).collect::<Vec<_>>().join("\n");
         let mut msg = if msg.is_empty() { errors.trim().to_string() } else { msg };
         if msg.contains("Sign in to confirm") || msg.to_lowercase().contains("bot") {
-            msg += "\n\nTipp: YouTube verlangt eine Anmeldung. Wähle in den Link-Optionen deinen Browser für Cookies \
-                    aus oder gib eine cookies.txt an.";
+            msg += "\n\nTip: YouTube requires you to sign in. In the link options, choose your browser for cookies \
+                    or provide a cookies.txt.";
         }
-        bail!("Download fehlgeschlagen: {msg}");
+        bail!("Download failed: {msg}");
     }
     let file = file
         .filter(|f| f.is_file())
         .or_else(|| std::fs::read_dir(&dir).ok()?.flatten().map(|e| e.path()).find(|p| p.is_file()))
-        .ok_or_else(|| anyhow!("Download fehlgeschlagen: keine Datei erhalten"))?;
+        .ok_or_else(|| anyhow!("Download failed: no file received"))?;
     let bytes = std::fs::read(&file)?;
     let extension = ext_of(&file);
     let _ = std::fs::remove_dir_all(&dir);

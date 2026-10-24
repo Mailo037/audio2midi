@@ -53,8 +53,8 @@ pub fn save(name: &str, bytes: Vec<u8>, _mime: &str) -> Option<String> {
     let ext = name.rsplit('.').next().unwrap_or("");
     let path = rfd::FileDialog::new().set_file_name(name).add_filter(ext, &[ext]).save_file()?;
     Some(match std::fs::write(&path, bytes) {
-        Ok(()) => format!("Gespeichert: {}", path.display()),
-        Err(e) => format!("Speichern fehlgeschlagen: {e}"),
+        Ok(()) => format!("Saved: {}", path.display()),
+        Err(e) => format!("Saving failed: {e}"),
     })
 }
 
@@ -77,7 +77,7 @@ pub fn save(name: &str, bytes: Vec<u8>, mime: &str) -> Option<String> {
         Ok(())
     };
     Some(match run() {
-        Ok(()) => format!("Heruntergeladen: {name}"),
-        Err(e) => format!("Download fehlgeschlagen: {e:?}"),
+        Ok(()) => format!("Downloaded: {name}"),
+        Err(e) => format!("Download failed: {e:?}"),
     })
 }

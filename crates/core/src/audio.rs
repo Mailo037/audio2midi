@@ -96,22 +96,22 @@ pub fn decode(bytes: Vec<u8>, extension_hint: Option<&str>) -> Result<Audio> {
     }
     let mut format = symphonia::default::get_probe()
         .probe(&hint, mss, FormatOptions::default(), MetadataOptions::default())
-        .map_err(|e| anyhow!("Dateiformat wird nicht unterstützt ({e})"))?;
+        .map_err(|e| anyhow!("File format not supported ({e})"))?;
 
     let track = format
         .default_track(TrackType::Audio)
-        .ok_or_else(|| anyhow!("Die Datei enthält keine Audiospur"))?;
+        .ok_or_else(|| anyhow!("The file contains no audio track"))?;
     let track_id = track.id;
     let params = track
         .codec_params
         .as_ref()
         .and_then(|p| p.audio())
-        .ok_or_else(|| anyhow!("Audiospur ohne Codec-Angaben"))?
+        .ok_or_else(|| anyhow!("Audio track has no codec information"))?
         .clone();
     let mut decoder = symphonia::default::get_codecs()
         .make_audio_decoder(&params, &AudioDecoderOptions::default())
         .map_err(|e| {
-            anyhow!("Audio-Codec wird nicht unterstützt ({e}). Opus/WebM bitte vorher in MP3 oder WAV umwandeln.")
+            anyhow!("Audio codec not supported ({e}). Please convert Opus/WebM to MP3 or WAV first.")
         })?;
 
     let mut rate = params.sample_rate.unwrap_or(0);
@@ -123,7 +123,7 @@ pub fn decode(bytes: Vec<u8>, extension_hint: Option<&str>) -> Result<Audio> {
             Ok(None) => break,
             Err(SymError::IoError(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
             Err(SymError::ResetRequired) => break,
-            Err(e) => return Err(anyhow!("Lesefehler: {e}")),
+            Err(e) => return Err(anyhow!("Read error: {e}")),
         };
         if packet.track_id != track_id {
             continue;
@@ -131,7 +131,7 @@ pub fn decode(bytes: Vec<u8>, extension_hint: Option<&str>) -> Result<Audio> {
         let buf = match decoder.decode(&packet) {
             Ok(b) => b,
             Err(SymError::DecodeError(_)) => continue, // beschädigtes Paket überspringen
-            Err(e) => return Err(anyhow!("Dekodierfehler: {e}")),
+            Err(e) => return Err(anyhow!("Decoding error: {e}")),
         };
         rate = buf.spec().rate();
         let ch = buf.spec().channels().count().max(1);
@@ -140,7 +140,7 @@ pub fn decode(bytes: Vec<u8>, extension_hint: Option<&str>) -> Result<Audio> {
         mono.extend(interleaved.chunks(ch).map(|f| f.iter().sum::<f32>() / ch as f32));
     }
     if mono.is_empty() || rate == 0 {
-        bail!("Keine Audiodaten gefunden");
+        bail!("No audio data found");
     }
     Ok(Audio { samples: mono, rate })
 }
@@ -149,7 +149,7 @@ pub fn decode(bytes: Vec<u8>, extension_hint: Option<&str>) -> Result<Audio> {
 #[cfg(not(target_arch = "wasm32"))]
 pub fn load_file(path: &std::path::Path) -> Result<Audio> {
     use anyhow::Context;
-    let bytes = std::fs::read(path).with_context(|| format!("Kann {} nicht lesen", path.display()))?;
+    let bytes = std::fs::read(path).with_context(|| format!("Cannot read {}", path.display()))?;
     let ext = path.extension().and_then(|e| e.to_str()).map(|s| s.to_lowercase());
     decode(bytes, ext.as_deref())
 }
@@ -159,11 +159,11 @@ pub fn wav_bytes(samples: &[f32], rate: u32, channels: u16) -> Vec<u8> {
     let spec = hound::WavSpec { channels, sample_rate: rate, bits_per_sample: 16, sample_format: hound::SampleFormat::Int };
     let mut cur = Cursor::new(Vec::new());
     {
-        let mut w = hound::WavWriter::new(&mut cur, spec).expect("WAV-Header");
+        let mut w = hound::WavWriter::new(&mut cur, spec).expect("WAV header");
         for s in samples {
-            w.write_sample((s.clamp(-1.0, 1.0) * 32767.0) as i16).expect("WAV schreiben");
+            w.write_sample((s.clamp(-1.0, 1.0) * 32767.0) as i16).expect("write WAV");
         }
-        w.finalize().expect("WAV abschließen");
+        w.finalize().expect("finish WAV");
     }
     cur.into_inner()
 }

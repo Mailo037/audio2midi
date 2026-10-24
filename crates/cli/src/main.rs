@@ -1,8 +1,8 @@
 //! Kommandozeile: Link oder Datei → MIDI.
 //!
-//!   audio2midi lied.mp3
-//!   audio2midi "https://soundcloud.com/…" --preset Klavier --quantize 1/16 --split 60
-//!   audio2midi *.wav --mono --transpose -2 -o meine_midis
+//!   audio2midi song.mp3
+//!   audio2midi "https://soundcloud.com/…" --preset piano --quantize 1/16 --split 60
+//!   audio2midi *.wav --mono --transpose -2 -o my_midis
 
 use anyhow::{bail, Result};
 use audio2midi_core::download::{self, LinkOptions};
@@ -13,99 +13,103 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
-#[command(name = "audio2midi", version, about = "Audio (Link oder Datei) in MIDI umwandeln")]
+#[command(name = "audio2midi", version, about = "Convert audio (link or file) to MIDI")]
 struct Args {
-    /// Links oder Dateipfade
+    /// Links or file paths
     #[arg(required = true)]
-    quellen: Vec<String>,
-    /// Ausgabeordner
-    #[arg(short, long, default_value = "ausgabe")]
+    sources: Vec<String>,
+    /// Output folder
+    #[arg(short, long, default_value = "output")]
     out: PathBuf,
-    /// Voreinstellung: Standard, Klavier, Gesang, Bass, Gitarre, Flöte
+    /// Preset: default, piano, vocals, bass, guitar, whistle
     #[arg(long)]
     preset: Option<String>,
-    /// Start in Sekunden
+    /// Start in seconds
     #[arg(long, default_value_t = 0.0)]
     start: f64,
-    /// Ende in Sekunden (0 = bis Schluss)
+    /// End in seconds (0 = until the end)
     #[arg(long, default_value_t = 0.0)]
     end: f64,
-    /// Lautstärke nicht normalisieren
+    /// Don't normalize the volume
     #[arg(long)]
     no_normalize: bool,
-    /// Einsatz-Empfindlichkeit 0–1 (höher = weniger Noten)
+    /// Onset threshold 0–1 (higher = fewer notes)
     #[arg(long)]
     onset: Option<f32>,
-    /// Noten-Schwelle 0–1
+    /// Note threshold 0–1
     #[arg(long)]
     frame: Option<f32>,
-    /// Mindestlänge einer Note in ms
+    /// Minimum note length in ms
     #[arg(long)]
     min_note_ms: Option<f32>,
     #[arg(long)]
     min_freq: Option<f32>,
     #[arg(long)]
     max_freq: Option<f32>,
-    /// Melodia-Trick ausschalten
+    /// Turn off the Melodia trick
     #[arg(long)]
     no_melodia: bool,
-    /// Festes Tempo (sonst automatisch)
+    /// Fixed tempo (otherwise detected automatically)
     #[arg(long)]
     bpm: Option<f64>,
-    /// Aus, 1/4, 1/8, "1/8 Triole", 1/16, "1/16 Triole", 1/32
-    #[arg(long, default_value = "Aus")]
+    /// off, 1/4, 1/8, "1/8 triplet", 1/16, "1/16 triplet", 1/32
+    #[arg(long, default_value = "off")]
     quantize: String,
-    /// Quantisierungsstärke in %
+    /// Quantization strength in %
     #[arg(long, default_value_t = 100.0)]
     strength: f64,
     #[arg(long, default_value_t = 0, allow_hyphen_values = true)]
     transpose: i32,
-    /// Tonart festlegen, z. B. "A-Moll" (sonst automatisch)
+    /// Set the key, e.g. "A minor" (otherwise detected automatically)
     #[arg(long)]
     key: Option<String>,
-    /// Falsche Töne auf die Tonleiter korrigieren
+    /// Snap wrong notes to the scale
     #[arg(long)]
     snap_to_key: bool,
-    /// Einstimmig (nur höchster Ton)
+    /// Monophonic (highest note only)
     #[arg(long)]
     mono: bool,
-    /// In zwei Spuren teilen an dieser MIDI-Note (60 = C4)
+    /// Split into two tracks at this MIDI note (60 = C4)
     #[arg(long)]
     split: Option<u8>,
-    /// General-MIDI-Instrument 0–127
+    /// General MIDI instrument 0–127
     #[arg(long)]
     program: Option<u8>,
-    /// Feste Velocity 1–127
+    /// Fixed velocity 1–127
     #[arg(long)]
     fixed_velocity: Option<u8>,
-    /// Noten unter dieser Velocity entfernen
+    /// Remove notes below this velocity
     #[arg(long, default_value_t = 0)]
     min_velocity: u8,
-    /// Wiederholte Töne verbinden, wenn Lücke kleiner (ms)
+    /// Merge repeated notes if the gap is smaller than this (ms)
     #[arg(long, default_value_t = 0.0)]
     merge_gap: f64,
-    /// Pitch-Bends behalten
+    /// Keep pitch bends
     #[arg(long)]
     pitch_bends: bool,
-    /// cookies.txt für YouTube
+    /// Remove ghost notes (overtones, stray high/low notes), 0–100 %
+    #[arg(long, default_value_t = 50.0)]
+    cleanup: f64,
+    /// cookies.txt for YouTube
     #[arg(long)]
     cookies: Option<PathBuf>,
-    /// Cookies aus Browser übernehmen, z. B. firefox, chrome
+    /// Use cookies from a browser, e.g. firefox, chrome
     #[arg(long)]
     cookies_from_browser: Option<String>,
-    /// Kein Vorhör-Audio erzeugen
+    /// Don't create preview audio
     #[arg(long)]
     no_preview: bool,
 }
 
 fn parse_key(s: &str) -> Result<Key> {
-    let s = s.trim().to_lowercase().replace(' ', "-");
+    let norm = |s: &str| s.trim().to_lowercase().replace(['-', '_'], " ").split_whitespace().collect::<Vec<_>>().join(" ");
+    let wanted = norm(s);
     for k in Key::all() {
-        if k.name().to_lowercase() == s {
+        if norm(&k.name()) == wanted {
             return Ok(k);
         }
     }
-    bail!("Unbekannte Tonart '{s}' (Beispiel: C-Dur, A-Moll, F#-Moll)")
+    bail!("Unknown key '{s}' (examples: \"C major\", \"A minor\", \"F# minor\")")
 }
 
 fn safe_name(s: &str) -> String {
@@ -122,7 +126,7 @@ fn main() -> Result<()> {
         let p = presets()
             .into_iter()
             .find(|p| p.name.to_lowercase().starts_with(&name.to_lowercase()))
-            .ok_or_else(|| anyhow::anyhow!("Unbekannte Voreinstellung '{name}'"))?;
+            .ok_or_else(|| anyhow::anyhow!("Unknown preset '{name}'"))?;
         detect = p.detect;
         post.mono = p.mono;
         post.program = p.program;
@@ -138,7 +142,7 @@ fn main() -> Result<()> {
         post.auto_tempo = false;
         post.bpm = b;
     }
-    post.quantize = Quantize::parse(&a.quantize).ok_or_else(|| anyhow::anyhow!("Unbekanntes Raster '{}'", a.quantize))?;
+    post.quantize = Quantize::parse(&a.quantize).ok_or_else(|| anyhow::anyhow!("Unknown grid '{}'", a.quantize))?;
     post.quantize_strength = a.strength;
     post.transpose = a.transpose;
     post.key = a.key.as_deref().map(parse_key).transpose()?;
@@ -156,13 +160,14 @@ fn main() -> Result<()> {
     post.min_velocity = a.min_velocity;
     post.merge_gap_ms = a.merge_gap;
     post.keep_pitch_bends = a.pitch_bends;
+    post.cleanup = a.cleanup.clamp(0.0, 100.0);
     let prep = PrepOptions { start: a.start, end: a.end, normalize: !a.no_normalize };
     let link = LinkOptions { cookies_file: a.cookies.clone(), cookies_browser: a.cookies_from_browser.clone() };
 
     let model = Model::load()?;
     let mut failed = 0;
-    for (i, src) in a.quellen.iter().enumerate() {
-        println!("[{}/{}] {src}", i + 1, a.quellen.len());
+    for (i, src) in a.sources.iter().enumerate() {
+        println!("[{}/{}] {src}", i + 1, a.sources.len());
         let res = (|| -> Result<()> {
             let (audio, title) = if download::is_url(src) {
                 let d = download::download(src, &link, |p, msg| {
@@ -176,10 +181,10 @@ fn main() -> Result<()> {
                 (audio::load_file(p)?, p.file_stem().and_then(|s| s.to_str()).unwrap_or("audio").to_string())
             };
             let analysis = audio2midi_core::analyze(&model, &audio, &prep, |p| {
-                print!("\r   {:3.0}%  Erkenne Noten …   ", p * 100.0);
+                print!("\r   {:3.0}%  Detecting notes …   ", p * 100.0);
                 let _ = std::io::stdout().flush();
             })?;
-            println!("\r   100%  Erkenne Noten …   ");
+            println!("\r   100%  Detecting notes …   ");
             let song = analysis.song(&detect, &post);
 
             let name = safe_name(&title);
@@ -187,31 +192,31 @@ fn main() -> Result<()> {
             std::fs::create_dir_all(&dir)?;
             let midi = dir.join(format!("{name}.mid"));
             std::fs::write(&midi, export::midi_bytes(&song))?;
-            std::fs::write(dir.join(format!("{name}_noten.csv")), export::csv(&song))?;
+            std::fs::write(dir.join(format!("{name}_notes.csv")), export::csv(&song))?;
             std::fs::write(dir.join(format!("{name}_pianoroll.svg")), export::pianoroll_svg(&song, &title))?;
             let rate = audio2midi_core::model::SAMPLE_RATE;
             std::fs::write(dir.join(format!("{name}_audio.wav")), audio::wav_bytes(&analysis.audio.samples, rate, 1))?;
             if !a.no_preview {
                 let synth = export::synthesize(&song, rate);
-                std::fs::write(dir.join(format!("{name}_midi_vorschau.wav")), audio::wav_bytes(&synth, rate, 1))?;
+                std::fs::write(dir.join(format!("{name}_midi_preview.wav")), audio::wav_bytes(&synth, rate, 1))?;
                 let mix = export::comparison_mix(&analysis.audio.samples, &synth);
-                std::fs::write(dir.join(format!("{name}_vergleich.wav")), audio::wav_bytes(&mix, rate, 2))?;
+                std::fs::write(dir.join(format!("{name}_compare.wav")), audio::wav_bytes(&mix, rate, 2))?;
             }
 
             let range = song.pitch_range().map(|(l, h)| format!("{} – {}", note_name(l), note_name(h))).unwrap_or("–".into());
-            println!("   Titel      {title}");
-            println!("   Länge      {:.1} s", analysis.audio.duration());
-            println!("   Tempo      {} BPM{}", song.bpm, if song.tempo_detected { " (erkannt)" } else { "" });
-            println!("   Tonart     {}{}", song.key.name(), if song.key_detected { " (erkannt)" } else { "" });
-            println!("   Noten      {}", song.note_count());
-            println!("   Spuren     {}", song.tracks.len());
-            println!("   Tonumfang  {range}");
+            println!("   Title      {title}");
+            println!("   Length     {:.1} s", analysis.audio.duration());
+            println!("   Tempo      {} BPM{}", song.bpm, if song.tempo_detected { " (detected)" } else { "" });
+            println!("   Key        {}{}", song.key.name(), if song.key_detected { " (detected)" } else { "" });
+            println!("   Notes      {}", song.note_count());
+            println!("   Tracks     {}", song.tracks.len());
+            println!("   Range      {range}");
             println!("   → {}", midi.display());
             Ok(())
         })();
         if let Err(e) = res {
             failed += 1;
-            eprintln!("   FEHLER: {e:#}");
+            eprintln!("   ERROR: {e:#}");
         }
     }
     if failed > 0 {

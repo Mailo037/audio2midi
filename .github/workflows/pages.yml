@@ -1,5 +1,5 @@
 # Baut die Browser-Version (WebAssembly) und veröffentlicht sie auf GitHub Pages.
-name: Web-Version
+name: Web version
 
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
         with:
           key: wasm
 
-      - name: wasm-bindgen in der Version aus Cargo.lock installieren
+      - name: Install wasm-bindgen in the version from Cargo.lock
         run: |
           VERSION=$(grep -A1 'name = "wasm-bindgen"' Cargo.lock | sed -n 2p | cut -d'"' -f2)
           echo "wasm-bindgen $VERSION"
@@ -38,10 +38,10 @@ jobs:
             || cargo install wasm-bindgen-cli --version "$VERSION" --locked
           wasm-bindgen --version
 
-      - name: binaryen (wasm-opt) installieren
+      - name: Install binaryen (wasm-opt)
         run: sudo apt-get update -q && sudo apt-get install -y -q binaryen
 
-      - name: Web-Version bauen
+      - name: Build web version
         run: ./build-web.sh
 
       - uses: actions/upload-pages-artifact@v3

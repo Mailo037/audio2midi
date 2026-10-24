@@ -49,7 +49,7 @@ impl Model {
         let out = self.plan.run(tvec!(input.into()))?;
         // Ausgabereihenfolge des ONNX-Graphen: onsets, notes, contours
         let get = |i: usize| -> Result<Vec<f32>> {
-            Ok(out.get(i).ok_or_else(|| anyhow!("Modellausgabe fehlt"))?.to_plain_array_view::<f32>()?.iter().copied().collect())
+            Ok(out.get(i).ok_or_else(|| anyhow!("model output missing"))?.to_plain_array_view::<f32>()?.iter().copied().collect())
         };
         Ok([get(1)?, get(0)?, get(2)?])
     }

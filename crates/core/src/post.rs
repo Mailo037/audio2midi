@@ -3,7 +3,7 @@
 use crate::model::{ModelOutput, N_NOTES};
 use crate::notes::{frame_times, DetectParams, RawNote};
 
-pub const NOTE_NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "H"];
+pub const NOTE_NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 pub fn note_name(pitch: u8) -> String {
     format!("{}{}", NOTE_NAMES[pitch as usize % 12], pitch as i32 / 12 - 1)
@@ -17,7 +17,7 @@ pub struct Key {
 
 impl Key {
     pub fn name(&self) -> String {
-        format!("{}-{}", NOTE_NAMES[self.root as usize], if self.minor { "Moll" } else { "Dur" })
+        format!("{} {}", NOTE_NAMES[self.root as usize], if self.minor { "minor" } else { "major" })
     }
     pub fn all() -> Vec<Key> {
         (0..2).flat_map(|m| (0..12).map(move |r| Key { root: r, minor: m == 1 })).collect()
@@ -47,12 +47,12 @@ impl Quantize {
     ];
     pub fn label(&self) -> &'static str {
         match self {
-            Quantize::Off => "Aus",
+            Quantize::Off => "Off",
             Quantize::Quarter => "1/4",
             Quantize::Eighth => "1/8",
-            Quantize::EighthTriplet => "1/8 Triole",
+            Quantize::EighthTriplet => "1/8 triplet",
             Quantize::Sixteenth => "1/16",
-            Quantize::SixteenthTriplet => "1/16 Triole",
+            Quantize::SixteenthTriplet => "1/16 triplet",
             Quantize::ThirtySecond => "1/32",
         }
     }
@@ -95,6 +95,8 @@ pub struct PostOptions {
     pub snap_to_key: bool,
     pub mono: bool,
     pub keep_pitch_bends: bool,
+    /// Geisternoten entfernen (Obertöne, Ausreißer), 0–100 %
+    pub cleanup: f64,
     pub note_low: u8,
     pub note_high: u8,
     pub min_velocity: u8,
@@ -121,6 +123,7 @@ impl Default for PostOptions {
             snap_to_key: false,
             mono: false,
             keep_pitch_bends: false,
+            cleanup: 50.0,
             note_low: 0,
             note_high: 127,
             min_velocity: 0,
@@ -152,12 +155,12 @@ pub fn presets() -> Vec<Preset> {
         ..DetectParams::default()
     };
     vec![
-        Preset { name: "Standard", detect: DetectParams::default(), mono: false, program: 0 },
-        Preset { name: "Klavier", detect: d(0.55, 0.3, 80.0, 27.5, 4200.0), mono: false, program: 0 },
-        Preset { name: "Gesang / Melodie (einstimmig)", detect: d(0.6, 0.4, 120.0, 80.0, 1100.0), mono: true, program: 53 },
+        Preset { name: "Default", detect: DetectParams::default(), mono: false, program: 0 },
+        Preset { name: "Piano", detect: d(0.55, 0.3, 80.0, 27.5, 4200.0), mono: false, program: 0 },
+        Preset { name: "Vocals / melody (monophonic)", detect: d(0.6, 0.4, 120.0, 80.0, 1100.0), mono: true, program: 53 },
         Preset { name: "Bass", detect: d(0.5, 0.35, 100.0, 30.0, 400.0), mono: true, program: 33 },
-        Preset { name: "Gitarre", detect: d(0.5, 0.3, 90.0, 80.0, 1400.0), mono: false, program: 25 },
-        Preset { name: "Pfeifen / Flöte", detect: d(0.6, 0.4, 120.0, 250.0, 3000.0), mono: true, program: 73 },
+        Preset { name: "Guitar", detect: d(0.5, 0.3, 90.0, 80.0, 1400.0), mono: false, program: 25 },
+        Preset { name: "Whistle / flute", detect: d(0.6, 0.4, 120.0, 250.0, 3000.0), mono: true, program: 73 },
     ]
 }
 
@@ -466,7 +469,7 @@ pub fn postprocess(raw: &[RawNote], o: &PostOptions, tempo: (f64, f64), detected
 
         if o.split_hands {
             let (hi, lo): (Vec<Note>, Vec<Note>) = notes.into_iter().partition(|n| n.pitch >= o.split_point);
-            for (name, ns) in [("Rechte Hand / Hoch", hi), ("Linke Hand / Tief", lo)] {
+            for (name, ns) in [("Right hand / high", hi), ("Left hand / low", lo)] {
                 if !ns.is_empty() {
                     tracks.push(Track { name: name.into(), program: o.program, notes: ns, bends: Vec::new() });
                 }

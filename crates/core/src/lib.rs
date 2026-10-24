@@ -1,9 +1,10 @@
 //! Audio → MIDI: Kernbibliothek (läuft nativ und als WebAssembly).
 //!
 //! Ablauf: [`audio::decode`] → [`prepare`] → [`model::Transcription`] →
-//! [`Analysis::song`] (Notenerkennung + Nachbearbeitung) → [`export`].
+//! [`Analysis::song`] (Notenerkennung + Aufräumen + Nachbearbeitung) → [`export`].
 
 pub mod audio;
+pub mod clean;
 pub mod export;
 pub mod model;
 pub mod notes;
@@ -58,7 +59,8 @@ impl Analysis {
     }
 
     pub fn song_from_raw(&self, raw: &[RawNote], o: &PostOptions) -> Song {
-        post::postprocess(raw, o, self.tempo, post::detect_key(raw))
+        let cleaned = clean::clean_notes(raw, o.cleanup / 100.0);
+        post::postprocess(&cleaned, o, self.tempo, post::detect_key(&cleaned))
     }
 
     pub fn song(&self, d: &DetectParams, o: &PostOptions) -> Song {

@@ -62,11 +62,11 @@ impl Pipeline {
     /// Text, der *während* des nächsten Schritts angezeigt wird.
     pub fn status(&self) -> (f32, &'static str) {
         match &self.stage {
-            Stage::Decode(..) => (0.02, "Lese Audiodatei …"),
-            Stage::Prepare => (0.06, "Bereite Audio vor …"),
-            Stage::LoadModel => (0.1, "Lade Erkennungsmodell …"),
-            Stage::Run(t) => (0.12 + 0.88 * t.progress(), "Erkenne Noten …"),
-            Stage::Finished => (1.0, "Fertig"),
+            Stage::Decode(..) => (0.02, "Reading audio file …"),
+            Stage::Prepare => (0.06, "Preparing audio …"),
+            Stage::LoadModel => (0.1, "Loading detection model …"),
+            Stage::Run(t) => (0.12 + 0.88 * t.progress(), "Detecting notes …"),
+            Stage::Finished => (1.0, "Done"),
         }
     }
 
@@ -80,7 +80,7 @@ impl Pipeline {
             Stage::Prepare => {
                 let a = prepare(self.original.as_ref().unwrap(), &self.prep);
                 if a.samples.len() < 2205 {
-                    anyhow::bail!("Der gewählte Ausschnitt ist zu kurz.");
+                    anyhow::bail!("The selected section is too short.");
                 }
                 self.prepared = Some(a);
                 self.stage = Stage::LoadModel;
@@ -101,7 +101,7 @@ impl Pipeline {
                 }
                 self.stage = Stage::Run(t);
             }
-            Stage::Finished => anyhow::bail!("Bereits fertig"),
+            Stage::Finished => anyhow::bail!("Already finished"),
         }
         let (p, m) = self.status();
         Ok(Step::Progress(p, m))

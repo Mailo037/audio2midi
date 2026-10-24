@@ -15,4 +15,4 @@ if command -v wasm-opt >/dev/null; then
 fi
 cp web/index.html site/index.html
 touch site/.nojekyll
-echo "Fertig: site/ ($(du -sh site/pkg | cut -f1))"
+echo "Done: site/ ($(du -sh site/pkg | cut -f1))"

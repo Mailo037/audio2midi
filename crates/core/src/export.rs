@@ -57,12 +57,12 @@ pub fn midi_bytes(song: &Song) -> Vec<u8> {
 
     let smf = Smf { header: Header::new(Format::Parallel, Timing::Metrical(u15::new(TPQ))), tracks };
     let mut buf = Vec::new();
-    smf.write_std(&mut buf).expect("MIDI schreiben");
+    smf.write_std(&mut buf).expect("write MIDI");
     buf
 }
 
 pub fn csv(song: &Song) -> String {
-    let mut s = String::from("Spur;Start (s);Ende (s);Dauer (s);MIDI-Note;Name;Velocity\n");
+    let mut s = String::from("Track;Start (s);End (s);Duration (s);MIDI note;Name;Velocity\n");
     for t in &song.tracks {
         for n in &t.notes {
             s += &format!(
