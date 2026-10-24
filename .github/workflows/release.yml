@@ -1,6 +1,6 @@
 # Baut Desktop-App und Kommandozeile für Windows, Linux und macOS.
 # Bei jedem Push auf main landen die Pakete im Release v<Version aus Cargo.toml>.
-name: Programme
+name: Programs
 
 on:
   push:
@@ -34,14 +34,14 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Linux-Bibliotheken installieren
+      - name: Install Linux libraries
         if: runner.os == 'Linux'
         run: sudo apt-get update -q && sudo apt-get install -y -q libasound2-dev libxkbcommon-dev
 
-      - name: Bauen
+      - name: Build
         run: cargo build --release --locked -p audio2midi-app -p audio2midi-cli
 
-      - name: Paket schnüren
+      - name: Package
         shell: bash
         run: |
           DIR=audio2midi-${{ matrix.name }}
@@ -60,13 +60,13 @@ jobs:
           name: audio2midi-${{ matrix.name }}
           path: audio2midi-${{ matrix.name }}.zip
 
-      - name: Version aus Cargo.toml lesen
+      - name: Read version from Cargo.toml
         id: version
         shell: bash
         run: echo "tag=v$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
 
       # Legt Tag und Release an (falls nötig) und ersetzt die Pakete bei jedem Push auf main
-      - name: Als Release veröffentlichen
+      - name: Publish as release
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
@@ -76,10 +76,10 @@ jobs:
           files: audio2midi-${{ matrix.name }}.zip
           make_latest: true
           body: |
-            Herunterladen, entpacken und **Audio2MIDI** starten – keine Installation nötig.
+            Download, unzip and start **Audio2MIDI** – no installation needed.
 
             - **Windows:** `audio2midi-windows.zip`
-            - **macOS:** `audio2midi-macos.zip` (beim ersten Start Rechtsklick → „Öffnen“, da nicht signiert)
+            - **macOS:** `audio2midi-macos.zip` (on first launch right-click → “Open”, since the app is not signed)
             - **Linux:** `audio2midi-linux.zip`
 
-            Ganz ohne Download im Browser: https://mailo037.github.io/audio2midi/
+            No download at all, in your browser: https://mailo037.github.io/audio2midi/

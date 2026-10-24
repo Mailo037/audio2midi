@@ -37,7 +37,7 @@ mod native {
                 return Ok(());
             }
             let host = cpal::default_host();
-            let device = host.default_output_device().ok_or_else(|| anyhow::anyhow!("Kein Audioausgang gefunden"))?;
+            let device = host.default_output_device().ok_or_else(|| anyhow::anyhow!("No audio output found"))?;
             let supported = device.default_output_config()?;
             let format = supported.sample_format();
             let config: cpal::StreamConfig = supported.into();
@@ -45,7 +45,7 @@ mod native {
             let channels = config.channels as usize;
             let state = self.state.clone();
             let device_rate = self.device_rate;
-            let err = |e| eprintln!("Audiofehler: {e}");
+            let err = |e| eprintln!("Audio error: {e}");
             macro_rules! build {
                 ($t:ty, $conv:expr) => {
                     device.build_output_stream(
@@ -69,7 +69,7 @@ mod native {
                 cpal::SampleFormat::F32 => build!(f32, |v: f32| v),
                 cpal::SampleFormat::I16 => build!(i16, |v: f32| (v.clamp(-1.0, 1.0) * 32767.0) as i16),
                 cpal::SampleFormat::U16 => build!(u16, |v: f32| ((v.clamp(-1.0, 1.0) * 0.5 + 0.5) * 65535.0) as u16),
-                other => anyhow::bail!("Nicht unterstütztes Audioformat: {other:?}"),
+                other => anyhow::bail!("Unsupported audio format: {other:?}"),
             };
             stream.play()?;
             self.stream = Some(stream);
@@ -78,7 +78,7 @@ mod native {
 
         pub fn play(&mut self, stereo: Arc<Vec<f32>>, rate: u32, from: f64) {
             if let Err(e) = self.ensure_stream() {
-                self.error = Some(format!("Wiedergabe nicht möglich: {e}"));
+                self.error = Some(format!("Playback not possible: {e}"));
                 return;
             }
             let mut st = self.state.lock().unwrap();
@@ -140,7 +140,7 @@ mod web {
         pub fn play(&mut self, stereo: Arc<Vec<f32>>, rate: u32, from: f64) {
             self.stop();
             if let Err(e) = self.try_play(&stereo, rate, from) {
-                self.error = Some(format!("Wiedergabe nicht möglich: {e:?}"));
+                self.error = Some(format!("Playback not possible: {e:?}"));
             }
         }
 

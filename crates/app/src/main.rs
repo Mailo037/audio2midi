@@ -31,7 +31,7 @@ fn main() {
         if let Some(el) = document.get_element_by_id("loading") {
             match result {
                 Ok(()) => el.remove(),
-                Err(e) => el.set_inner_html(&format!("<p>Die App konnte nicht starten: {e:?}</p>")),
+                Err(e) => el.set_inner_html(&format!("<p>The app could not start: {e:?}</p>")),
             }
         }
     });

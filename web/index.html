@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Audio → MIDI</title>
-  <meta name="description" content="Musik in MIDI umwandeln – direkt im Browser, ohne Upload. Notenerkennung mit Spotify Basic Pitch, in Rust.">
+  <meta name="description" content="Convert music to MIDI – right in your browser, no upload. Note detection with Spotify Basic Pitch, in Rust.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎹</text></svg>">
   <style>
     html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #1b1b1b; color: #ddd;
@@ -20,13 +20,13 @@
 </head>
 <body>
   <canvas id="app"></canvas>
-  <div id="loading"><div class="spin"></div><div>Audio → MIDI wird geladen …</div></div>
-  <noscript>Bitte JavaScript aktivieren.</noscript>
+  <div id="loading"><div class="spin"></div><div>Loading Audio → MIDI …</div></div>
+  <noscript>Please enable JavaScript.</noscript>
   <script type="module">
     import init from "./pkg/audio2midi-app.js";
     init().catch((e) => {
       document.getElementById("loading").innerHTML =
-        "<p>Die App konnte nicht geladen werden. Bitte einen aktuellen Browser (Chrome, Firefox, Safari, Edge) verwenden.</p><pre>" + e + "</pre>";
+        "<p>The app could not be loaded. Please use a current browser (Chrome, Firefox, Safari, Edge).</p><pre>" + e + "</pre>";
     });
   </script>
 </body>

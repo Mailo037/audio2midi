@@ -175,7 +175,7 @@ impl App {
                     Err(e) => Msg::Error(format!("{e:#}")),
                 });
             });
-            self.job = Some(Job::Thread { rx, progress: (0.0, "Starte …".into()) });
+            self.job = Some(Job::Thread { rx, progress: (0.0, "Starting …".into()) });
         }
 
         #[cfg(target_arch = "wasm32")]
@@ -330,12 +330,12 @@ impl App {
 
     fn options_ui(&mut self, ui: &mut egui::Ui) {
         ui.add_space(6.0);
-        ui.heading("Einstellungen");
-        ui.label(RichText::new("Änderungen wirken sofort – außer beim Zuschnitt.").small().weak());
+        ui.heading("Settings");
+        ui.label(RichText::new("Changes apply instantly – except for trimming.").small().weak());
         ui.add_space(4.0);
 
         let all = presets();
-        egui::ComboBox::from_label("Voreinstellung")
+        egui::ComboBox::from_label("Preset")
             .selected_text(all[self.preset].name)
             .width(200.0)
             .show_ui(ui, |ui| {
@@ -350,18 +350,18 @@ impl App {
             });
         ui.add_space(6.0);
 
-        section(ui, "✂  Zuschnitt & Vorbereitung", false, |ui| {
+        section(ui, "✂  Trim & prepare", false, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Start");
                 ui.add(egui::DragValue::new(&mut self.prep.start).range(0.0..=36000.0).speed(0.1).suffix(" s"));
-                ui.label("Ende");
+                ui.label("End");
                 ui.add(egui::DragValue::new(&mut self.prep.end).range(0.0..=36000.0).speed(0.1).suffix(" s"));
             });
-            ui.label(RichText::new("Ende 0 = bis zum Schluss").small().weak());
-            ui.checkbox(&mut self.prep.normalize, "Lautstärke angleichen");
+            ui.label(RichText::new("End 0 = until the end").small().weak());
+            ui.checkbox(&mut self.prep.normalize, "Normalize volume");
             let changed = self.loaded.as_ref().is_some_and(|l| l.prep != self.prep);
             if changed {
-                let btn = ui.add_enabled(self.job.is_none(), egui::Button::new("↻ Neu analysieren"));
+                let btn = ui.add_enabled(self.job.is_none(), egui::Button::new("↻ Analyze again"));
                 if btn.clicked() {
                     let l = self.loaded.as_ref().unwrap();
                     let (title, a) = (l.title.clone(), l.original.clone());
@@ -370,28 +370,30 @@ impl App {
             }
         });
 
-        section(ui, "🎯  Notenerkennung", true, |ui| {
+        section(ui, "🎯  Note detection", true, |ui| {
             let d = &mut self.detect;
-            ui.add(egui::Slider::new(&mut d.onset_threshold, 0.05..=0.95).step_by(0.01).text("Einsatz-Schwelle"))
-                .on_hover_text("Höher = weniger, dafür sicherere Notenanfänge");
-            ui.add(egui::Slider::new(&mut d.frame_threshold, 0.05..=0.95).step_by(0.01).text("Noten-Schwelle"))
-                .on_hover_text("Höher = weniger Noten und kürzere Haltedauer");
-            ui.add(egui::Slider::new(&mut d.min_note_ms, 10.0..=500.0).step_by(1.0).suffix(" ms").text("Mindestlänge"));
+            ui.add(egui::Slider::new(&mut d.onset_threshold, 0.05..=0.95).step_by(0.01).text("Onset threshold"))
+                .on_hover_text("Higher = fewer but more reliable note starts");
+            ui.add(egui::Slider::new(&mut d.frame_threshold, 0.05..=0.95).step_by(0.01).text("Note threshold"))
+                .on_hover_text("Higher = fewer notes and shorter sustain");
+            ui.add(egui::Slider::new(&mut d.min_note_ms, 10.0..=500.0).step_by(1.0).suffix(" ms").text("Minimum length"));
             ui.horizontal(|ui| {
-                ui.label("Frequenz");
+                ui.label("Frequency");
                 ui.add(egui::DragValue::new(&mut d.min_freq).range(0.0..=8000.0).speed(5.0).suffix(" Hz"));
-                ui.label("bis");
+                ui.label("to");
                 ui.add(egui::DragValue::new(&mut d.max_freq).range(0.0..=8000.0).speed(5.0).suffix(" Hz"));
             });
-            ui.label(RichText::new("0 Hz = keine Grenze").small().weak());
-            ui.checkbox(&mut d.melodia_trick, "Melodia-Trick (findet mehr gehaltene Töne)");
+            ui.label(RichText::new("0 Hz = no limit").small().weak());
+            ui.checkbox(&mut d.melodia_trick, "Melodia trick (finds more sustained notes)");
+            ui.add(egui::Slider::new(&mut self.post.cleanup, 0.0..=100.0).step_by(5.0).suffix(" %").text("Remove ghost notes"))
+                .on_hover_text("Removes overtones and stray notes far above or below the music. 0 % = raw detection");
         });
 
-        section(ui, "⏱  Tempo & Quantisierung", true, |ui| {
+        section(ui, "⏱  Tempo & quantization", true, |ui| {
             let p = &mut self.post;
-            ui.checkbox(&mut p.auto_tempo, "Tempo automatisch erkennen");
+            ui.checkbox(&mut p.auto_tempo, "Detect tempo automatically");
             ui.add_enabled(!p.auto_tempo, egui::Slider::new(&mut p.bpm, 30.0..=300.0).step_by(0.5).suffix(" BPM").text("Tempo"));
-            egui::ComboBox::from_label("Raster")
+            egui::ComboBox::from_label("Grid")
                 .selected_text(p.quantize.label())
                 .show_ui(ui, |ui| {
                     for q in Quantize::ALL {
@@ -399,48 +401,48 @@ impl App {
                     }
                 });
             let on = p.quantize != Quantize::Off;
-            ui.add_enabled(on, egui::Slider::new(&mut p.quantize_strength, 0.0..=100.0).step_by(5.0).suffix(" %").text("Stärke"));
-            ui.add_enabled(on, egui::Checkbox::new(&mut p.quantize_ends, "Notenenden mitquantisieren"));
+            ui.add_enabled(on, egui::Slider::new(&mut p.quantize_strength, 0.0..=100.0).step_by(5.0).suffix(" %").text("Strength"));
+            ui.add_enabled(on, egui::Checkbox::new(&mut p.quantize_ends, "Quantize note ends too"));
         });
 
-        section(ui, "🎼  Tonhöhe & Tonart", false, |ui| {
+        section(ui, "🎼  Pitch & key", false, |ui| {
             let p = &mut self.post;
-            ui.add(egui::Slider::new(&mut p.transpose, -24..=24).text("Transponieren").suffix(" HT"));
-            let label = p.key.map(|k| k.name()).unwrap_or_else(|| "Automatisch".into());
-            egui::ComboBox::from_label("Tonart").selected_text(label).height(300.0).show_ui(ui, |ui| {
-                ui.selectable_value(&mut p.key, None, "Automatisch");
+            ui.add(egui::Slider::new(&mut p.transpose, -24..=24).text("Transpose").suffix(" st"));
+            let label = p.key.map(|k| k.name()).unwrap_or_else(|| "Automatic".into());
+            egui::ComboBox::from_label("Key").selected_text(label).height(300.0).show_ui(ui, |ui| {
+                ui.selectable_value(&mut p.key, None, "Automatic");
                 for k in Key::all() {
                     ui.selectable_value(&mut p.key, Some(k), k.name());
                 }
             });
-            ui.checkbox(&mut p.snap_to_key, "Falsche Töne auf die Tonleiter korrigieren");
-            ui.checkbox(&mut p.mono, "Einstimmig (nur Melodie / höchster Ton)");
-            ui.add(egui::Slider::new(&mut p.note_low, 0..=127).custom_formatter(|v, _| note_name(v as u8)).text("Tiefster Ton"));
-            ui.add(egui::Slider::new(&mut p.note_high, 0..=127).custom_formatter(|v, _| note_name(v as u8)).text("Höchster Ton"));
+            ui.checkbox(&mut p.snap_to_key, "Snap wrong notes to the scale");
+            ui.checkbox(&mut p.mono, "Monophonic (melody only / highest note)");
+            ui.add(egui::Slider::new(&mut p.note_low, 0..=127).custom_formatter(|v, _| note_name(v as u8)).text("Lowest note"));
+            ui.add(egui::Slider::new(&mut p.note_high, 0..=127).custom_formatter(|v, _| note_name(v as u8)).text("Highest note"));
         });
 
-        section(ui, "🔊  Dynamik & Aufräumen", false, |ui| {
+        section(ui, "🔊  Dynamics & clean-up", false, |ui| {
             let p = &mut self.post;
             ui.horizontal(|ui| {
-                ui.label("Anschlag");
+                ui.label("Velocity");
                 ui.selectable_value(&mut p.velocity_mode, VelocityMode::Original, "Original");
-                ui.selectable_value(&mut p.velocity_mode, VelocityMode::Fixed, "Fest");
-                ui.selectable_value(&mut p.velocity_mode, VelocityMode::Scaled, "Skaliert");
+                ui.selectable_value(&mut p.velocity_mode, VelocityMode::Fixed, "Fixed");
+                ui.selectable_value(&mut p.velocity_mode, VelocityMode::Scaled, "Scaled");
             });
             match p.velocity_mode {
                 VelocityMode::Fixed => {
                     ui.add(egui::Slider::new(&mut p.fixed_velocity, 1..=127).text("Velocity"));
                 }
                 VelocityMode::Scaled => {
-                    ui.add(egui::Slider::new(&mut p.velocity_scale, 10.0..=200.0).step_by(5.0).suffix(" %").text("Faktor"));
+                    ui.add(egui::Slider::new(&mut p.velocity_scale, 10.0..=200.0).step_by(5.0).suffix(" %").text("Factor"));
                 }
                 VelocityMode::Original => {}
             }
-            ui.add(egui::Slider::new(&mut p.min_velocity, 0..=127).text("Leise Noten entfernen"));
-            ui.add(egui::Slider::new(&mut p.merge_gap_ms, 0.0..=200.0).step_by(5.0).suffix(" ms").text("Wiederholungen verbinden"));
+            ui.add(egui::Slider::new(&mut p.min_velocity, 0..=127).text("Remove quiet notes"));
+            ui.add(egui::Slider::new(&mut p.merge_gap_ms, 0.0..=200.0).step_by(5.0).suffix(" ms").text("Merge repeated notes"));
         });
 
-        section(ui, "💾  MIDI-Ausgabe", false, |ui| {
+        section(ui, "💾  MIDI output", false, |ui| {
             let p = &mut self.post;
             egui::ComboBox::from_label("Instrument")
                 .selected_text(format!("{:03} {}", p.program, GM_NAMES[p.program as usize]))
@@ -451,13 +453,13 @@ impl App {
                         ui.selectable_value(&mut p.program, i as u8, format!("{i:03} {name}"));
                     }
                 });
-            ui.checkbox(&mut p.split_hands, "In zwei Spuren teilen (rechte/linke Hand)");
+            ui.checkbox(&mut p.split_hands, "Split into two tracks (right/left hand)");
             ui.add_enabled(
                 p.split_hands,
-                egui::Slider::new(&mut p.split_point, 21..=108).custom_formatter(|v, _| note_name(v as u8)).text("Teilungspunkt"),
+                egui::Slider::new(&mut p.split_point, 21..=108).custom_formatter(|v, _| note_name(v as u8)).text("Split point"),
             );
-            ui.checkbox(&mut p.keep_pitch_bends, "Pitch-Bends behalten")
-                .on_hover_text("Nur ohne Quantisierung und ohne Spurteilung");
+            ui.checkbox(&mut p.keep_pitch_bends, "Keep pitch bends")
+                .on_hover_text("Only without quantization and track splitting");
             self.detect.multiple_pitch_bends = p.keep_pitch_bends;
         });
         ui.add_space(12.0);
@@ -471,11 +473,11 @@ impl App {
         egui::Frame::group(ui.style()).inner_margin(12.0).show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal_wrapped(|ui| {
-                let open = ui.add_enabled(!busy, egui::Button::new(RichText::new("📂  Datei öffnen").size(15.0)).min_size(Vec2::new(0.0, 30.0)));
+                let open = ui.add_enabled(!busy, egui::Button::new(RichText::new("📂  Open file").size(15.0)).min_size(Vec2::new(0.0, 30.0)));
                 if open.clicked() {
                     platform::pick_audio(&self.inbox, ui.ctx());
                 }
-                ui.label(RichText::new("oder Datei hierher ziehen  ·  MP3, WAV, FLAC, OGG, M4A, MP4 …").weak());
+                ui.label(RichText::new("or drop a file here  ·  MP3, WAV, FLAC, OGG, M4A, MP4 …").weak());
             });
             ui.add_space(8.0);
 
@@ -486,28 +488,28 @@ impl App {
                     let edit = ui.add_enabled(
                         !busy,
                         egui::TextEdit::singleline(&mut self.link)
-                            .hint_text("Link einfügen: YouTube, SoundCloud, Bandcamp …")
+                            .hint_text("Paste a link: YouTube, SoundCloud, Bandcamp …")
                             .desired_width(w),
                     );
                     let enter = edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                    let go = ui.add_enabled(!busy && !self.link.trim().is_empty(), egui::Button::new("⬇  Laden"));
+                    let go = ui.add_enabled(!busy && !self.link.trim().is_empty(), egui::Button::new("⬇  Load"));
                     if go.clicked() || (enter && !self.link.trim().is_empty() && !busy) {
                         let url = self.link.trim().to_string();
                         self.start(ui.ctx(), String::new(), Source::Link(url));
                     }
                 });
-                egui::CollapsingHeader::new(RichText::new("Link-Optionen (bei YouTube-Anmeldefehler)").small()).show(ui, |ui| {
+                egui::CollapsingHeader::new(RichText::new("Link options (for YouTube sign-in errors)").small()).show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        egui::ComboBox::from_label("Cookies aus Browser")
-                            .selected_text(if self.cookies_browser == 0 { "keine" } else { BROWSERS[self.cookies_browser] })
+                        egui::ComboBox::from_label("Cookies from browser")
+                            .selected_text(if self.cookies_browser == 0 { "none" } else { BROWSERS[self.cookies_browser] })
                             .show_ui(ui, |ui| {
                                 for (i, b) in BROWSERS.iter().enumerate() {
-                                    ui.selectable_value(&mut self.cookies_browser, i, if i == 0 { "keine" } else { b });
+                                    ui.selectable_value(&mut self.cookies_browser, i, if i == 0 { "none" } else { b });
                                 }
                             });
                     });
                     ui.horizontal(|ui| {
-                        if ui.button("cookies.txt wählen …").clicked() {
+                        if ui.button("Choose cookies.txt …").clicked() {
                             self.cookies_file = platform::pick_cookies();
                         }
                         if let Some(f) = &self.cookies_file {
@@ -522,10 +524,10 @@ impl App {
             #[cfg(target_arch = "wasm32")]
             {
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(RichText::new("🔗 Links (YouTube, SoundCloud …) gehen nur in der Desktop-App –").weak());
-                    ui.hyperlink_to("hier herunterladen", "https://github.com/Mailo037/audio2midi/releases");
+                    ui.label(RichText::new("🔗 Links (YouTube, SoundCloud …) only work in the desktop app –").weak());
+                    ui.hyperlink_to("download it here", "https://github.com/Mailo037/audio2midi/releases");
                 });
-                ui.label(RichText::new("Alles läuft lokal in deinem Browser, nichts wird hochgeladen.").small().weak());
+                ui.label(RichText::new("Everything runs locally in your browser, nothing is uploaded.").small().weak());
             }
 
             if let Some(job) = &self.job {
@@ -553,7 +555,7 @@ impl App {
             ui.add_space(40.0);
             ui.vertical_centered(|ui| {
                 ui.label(RichText::new("🎹").size(48.0));
-                ui.label(RichText::new("Öffne eine Audiodatei, um loszulegen.").size(16.0).weak());
+                ui.label(RichText::new("Open an audio file to get started.").size(16.0).weak());
             });
             return;
         };
@@ -564,12 +566,12 @@ impl App {
             ui.add_space(10.0);
             let range = song.pitch_range().map(|(a, b)| format!("{} – {}", note_name(a), note_name(b))).unwrap_or("–".into());
             for (k, v) in [
-                ("Länge", format!("{:.1} s", l.analysis.audio.duration())),
-                ("Tempo", format!("{} BPM{}", song.bpm, if song.tempo_detected { " (erkannt)" } else { "" })),
-                ("Tonart", format!("{}{}", song.key.name(), if song.key_detected { " (erkannt)" } else { "" })),
-                ("Noten", song.note_count().to_string()),
-                ("Spuren", song.tracks.len().to_string()),
-                ("Umfang", range),
+                ("Length", format!("{:.1} s", l.analysis.audio.duration())),
+                ("Tempo", format!("{} BPM{}", song.bpm, if song.tempo_detected { " (detected)" } else { "" })),
+                ("Key", format!("{}{}", song.key.name(), if song.key_detected { " (detected)" } else { "" })),
+                ("Notes", song.note_count().to_string()),
+                ("Tracks", song.tracks.len().to_string()),
+                ("Range", range),
             ] {
                 ui.label(RichText::new(k).weak());
                 ui.label(RichText::new(v).strong());
@@ -587,34 +589,34 @@ impl App {
         let mut save: Option<(String, Vec<u8>, &'static str)> = None;
         let name = safe_name(&l.title);
         ui.horizontal_wrapped(|ui| {
-            for (kind, label) in [(PlayKind::Midi, "▶  MIDI"), (PlayKind::Original, "▶  Original"), (PlayKind::Compare, "▶  Vergleich")] {
+            for (kind, label) in [(PlayKind::Midi, "▶  MIDI"), (PlayKind::Original, "▶  Original"), (PlayKind::Compare, "▶  Compare")] {
                 let active = self.playing == Some(kind);
                 let btn = egui::Button::new(if active { RichText::new(label).color(ACCENT) } else { RichText::new(label) }).selected(active);
                 let r = ui.add(btn);
-                let r = if kind == PlayKind::Compare { r.on_hover_text("Original und MIDI gleichzeitig") } else { r };
+                let r = if kind == PlayKind::Compare { r.on_hover_text("Original and MIDI at the same time") } else { r };
                 if r.clicked() {
                     play = Some(kind);
                 }
             }
-            if ui.add_enabled(self.playing.is_some(), egui::Button::new("⏹  Stopp")).clicked() {
+            if ui.add_enabled(self.playing.is_some(), egui::Button::new("⏹  Stop")).clicked() {
                 stop = true;
             }
             ui.separator();
-            if ui.add(egui::Button::new(RichText::new("💾  MIDI speichern").strong()).fill(Color32::from_rgb(15, 95, 88))).clicked() {
+            if ui.add(egui::Button::new(RichText::new("💾  Save MIDI").strong()).fill(Color32::from_rgb(15, 95, 88))).clicked() {
                 save = Some((format!("{name}.mid"), export::midi_bytes(song), "audio/midi"));
             }
-            ui.menu_button("Weitere Exporte ⏷", |ui| {
-                if ui.button("Notenliste (CSV)").clicked() {
-                    save = Some((format!("{name}_noten.csv"), export::csv(song).into_bytes(), "text/csv"));
+            ui.menu_button("More exports ⏷", |ui| {
+                if ui.button("Note list (CSV)").clicked() {
+                    save = Some((format!("{name}_notes.csv"), export::csv(song).into_bytes(), "text/csv"));
                 }
-                if ui.button("Pianoroll (SVG)").clicked() {
+                if ui.button("Piano roll (SVG)").clicked() {
                     save = Some((format!("{name}_pianoroll.svg"), export::pianoroll_svg(song, &l.title).into_bytes(), "image/svg+xml"));
                 }
-                if ui.button("MIDI-Vorschau (WAV)").clicked() {
+                if ui.button("MIDI preview (WAV)").clicked() {
                     let s = export::synthesize(song, SAMPLE_RATE);
                     save = Some((format!("{name}_midi.wav"), audio::wav_bytes(&s, SAMPLE_RATE, 1), "audio/wav"));
                 }
-                if ui.button("Verwendete Audiospur (WAV)").clicked() {
+                if ui.button("Analyzed audio (WAV)").clicked() {
                     save = Some((format!("{name}_audio.wav"), audio::wav_bytes(&l.analysis.audio.samples, SAMPLE_RATE, 1), "audio/wav"));
                 }
             });
@@ -658,7 +660,7 @@ impl eframe::App for App {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 ui.label(RichText::new("🎹 Audio → MIDI").size(20.0).strong().color(ACCENT));
-                ui.label(RichText::new("Noten aus Musik erkennen und als MIDI speichern").weak());
+                ui.label(RichText::new("Detect notes in music and save them as MIDI").weak());
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.hyperlink_to("GitHub", "https://github.com/Mailo037/audio2midi");
                     if let Some(s) = &self.status {
@@ -684,7 +686,7 @@ impl eframe::App for App {
             let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("drop")));
             let rect = ctx.content_rect();
             painter.rect_filled(rect, 0.0, Color32::from_black_alpha(180));
-            painter.text(rect.center(), Align2::CENTER_CENTER, "Loslassen zum Umwandeln", FontId::proportional(28.0), Color32::WHITE);
+            painter.text(rect.center(), Align2::CENTER_CENTER, "Drop to convert", FontId::proportional(28.0), Color32::WHITE);
         }
     }
 }
@@ -723,10 +725,10 @@ fn roll_ui(
         *view_start = 0.0;
     }
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Pianoroll").strong());
-        ui.label(RichText::new("Klicken = ab hier abspielen · Ziehen/Mausrad = verschieben · Strg+Mausrad = Zoom").small().weak());
+        ui.label(RichText::new("Piano roll").strong());
+        ui.label(RichText::new("Click = play from here · Drag/scroll = pan · Ctrl+scroll = zoom").small().weak());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.small_button("Einpassen").clicked() {
+            if ui.small_button("Fit").clicked() {
                 *zoom = 0.0;
             }
             ui.add(egui::Slider::new(zoom, 1.0..=600.0).logarithmic(true).show_value(false).text("Zoom"));
@@ -841,7 +843,7 @@ fn roll_ui(
         }
     }
     if song.note_count() == 0 {
-        painter.text(area.center(), Align2::CENTER_CENTER, "Keine Noten erkannt – Schwellen niedriger einstellen", FontId::proportional(15.0), Color32::from_gray(140));
+        painter.text(area.center(), Align2::CENTER_CENTER, "No notes detected – try lower thresholds", FontId::proportional(15.0), Color32::from_gray(140));
     }
 
     if let Some(t) = playhead {

@@ -1,79 +1,93 @@
 # 🎹 Audio → MIDI
 
-Musik in Noten umwandeln: Datei öffnen oder Link einfügen, das Programm erkennt die Noten und speichert sie als **MIDI-Datei**.
-Komplett in **Rust**. Die Notenerkennung ist eine exakte Portierung von Spotifys [Basic Pitch](https://github.com/spotify/basic-pitch)
-und liefert dieselben Noten wie das Python-Original.
+Turn music into notes: open a file or paste a link, the program detects the notes and saves them as a **MIDI file**.
+Written entirely in **Rust**. Note detection is an exact port of Spotify's [Basic Pitch](https://github.com/spotify/basic-pitch)
+and produces the same notes as the Python original, followed by a clean-up pass that removes ghost notes.
 
-## Drei Varianten, ein Code
+## Three versions, one codebase
 
-| Variante | Was geht | Installation |
+| Version | What it can do | Installation |
 |---|---|---|
-| **Im Browser** – [mailo037.github.io/audio2midi](https://mailo037.github.io/audio2midi/) | Dateien umwandeln. Alles läuft lokal im Browser, nichts wird hochgeladen. | keine |
-| **Desktop-App** (Windows/macOS/Linux) | zusätzlich **Links** (YouTube, SoundCloud, Bandcamp …) | eine Datei herunterladen und starten |
-| **Kommandozeile** `audio2midi` | alles, auch viele Dateien auf einmal | eine Datei |
+| **In the browser** – [mailo037.github.io/audio2midi](https://mailo037.github.io/audio2midi/) | Convert files. Everything runs locally in the browser, nothing is uploaded. | none |
+| **Desktop app** (Windows/macOS/Linux) | additionally **links** (YouTube, SoundCloud, Bandcamp …) | download one file and start it |
+| **Command line** `audio2midi` | everything, including many files at once | one file |
 
-Fertige Programme liegen unter [Releases](https://github.com/Mailo037/audio2midi/releases).
-Für Links lädt die App beim ersten Mal automatisch [yt-dlp](https://github.com/yt-dlp/yt-dlp) herunter.
-Ist [ffmpeg](https://ffmpeg.org) installiert, funktionieren noch mehr Seiten und Formate.
+Ready-made programs are available under [Releases](https://github.com/Mailo037/audio2midi/releases).
+For links, the app automatically downloads [yt-dlp](https://github.com/yt-dlp/yt-dlp) the first time.
+If [ffmpeg](https://ffmpeg.org) is installed, even more sites and formats work.
 
-## Funktionen
+## Features
 
-**Quellen:** MP3, WAV, FLAC, OGG, M4A/AAC, MP4/MOV, MKV, AIFF – per Dialog, Drag & Drop, „Öffnen mit …“ oder Link.
+**Sources:** MP3, WAV, FLAC, OGG, M4A/AAC, MP4/MOV, MKV, AIFF – via dialog, drag & drop, “Open with …” or link.
 
-**Optionen** (wirken sofort, ohne neu zu analysieren):
+**Options** (apply instantly, without analyzing again):
 
-| Bereich | Einstellungen |
+| Area | Settings |
 |---|---|
-| Voreinstellungen | Standard, Klavier, Gesang/Melodie, Bass, Gitarre, Pfeifen/Flöte |
-| Zuschnitt | Start/Ende, Lautstärke angleichen |
-| Notenerkennung | Einsatz-Schwelle, Noten-Schwelle, Mindestlänge, Frequenzbereich, Melodia-Trick |
-| Tempo | automatische BPM-Erkennung oder fest |
-| Quantisierung | 1/4 … 1/32 inkl. Triolen, Stärke in %, Notenenden ja/nein |
-| Tonhöhe | Transponieren ±24, Tonart automatisch/manuell, falsche Töne auf Tonleiter korrigieren, Tonumfang begrenzen, einstimmig |
-| Dynamik | Velocity original/fest/skaliert, leise Noten entfernen, Wiederholungen verbinden |
-| MIDI | alle 128 General-MIDI-Instrumente, zwei Spuren (rechte/linke Hand), Pitch-Bends |
+| Presets | Default, Piano, Vocals/melody, Bass, Guitar, Whistle/flute |
+| Trim | start/end, normalize volume |
+| Note detection | onset threshold, note threshold, minimum length, frequency range, Melodia trick, remove ghost notes |
+| Tempo | automatic BPM detection or fixed |
+| Quantization | 1/4 … 1/32 including triplets, strength in %, note ends yes/no |
+| Pitch | transpose ±24, key automatic/manual, snap wrong notes to the scale, limit the range, monophonic |
+| Dynamics | velocity original/fixed/scaled, remove quiet notes, merge repeated notes |
+| MIDI | all 128 General MIDI instruments, two tracks (right/left hand), pitch bends |
 
-**Ergebnis:** Pianoroll mit Taktraster und Zoom, Anhören von MIDI, Original und beidem gleichzeitig. Export als MIDI, CSV, SVG und WAV.
+**Result:** piano roll with bar grid and zoom, listen to the MIDI, the original, or both at once. Export as MIDI, CSV, SVG and WAV.
 
-## Kommandozeile
+### Remove ghost notes
+
+The raw model output often contains notes that weren't played: overtones an octave (or octave + fifth, two octaves …)
+above a real note, sub-octaves below it, and short blips far above or below the music. The clean-up pass
+(“Remove ghost notes”, default 50 %) removes
+
+- notes in an overtone interval that sound at the same time as a clearly louder note,
+- notes far outside the range of what is played in the surrounding ±3 seconds, unless they are long and loud,
+- very short notes that are much quieter than their neighbours, or that stand completely on their own.
+
+0 % gives the unmodified Basic Pitch result.
+
+## Command line
 
 ```bash
-audio2midi lied.mp3
-audio2midi "https://soundcloud.com/…" --preset Klavier --quantize 1/16 --split 60
+audio2midi song.mp3
+audio2midi "https://soundcloud.com/…" --preset piano --quantize 1/16 --split 60
 audio2midi "https://youtu.be/…" --mono --cookies-from-browser firefox
-audio2midi *.wav --transpose -2 --key A-Moll --snap-to-key -o meine_midis
+audio2midi *.wav --transpose -2 --key "A minor" --snap-to-key -o my_midis
+audio2midi song.mp3 --cleanup 80
 audio2midi --help
 ```
 
-Pro Datei entstehen `.mid`, Notenliste (`.csv`), Pianoroll (`.svg`), Audiospur und Vorhör-WAVs.
+For each file you get the `.mid`, a note list (`.csv`), a piano roll (`.svg`), the analyzed audio and preview WAVs.
 
-## Selbst bauen
+## Building it yourself
 
 ```bash
-cargo run --release -p audio2midi-app        # Desktop-App
-cargo run --release -p audio2midi-cli -- …    # Kommandozeile
-./build-web.sh                                # Browser-Version nach site/
+cargo run --release -p audio2midi-app        # desktop app
+cargo run --release -p audio2midi-cli -- …    # command line
+./build-web.sh                                # browser version into site/
 ```
 
-Linux braucht `libasound2-dev`. Für die Web-Version: `rustup target add wasm32-unknown-unknown` und
-`cargo install wasm-bindgen-cli` (gleiche Version wie in `Cargo.lock`).
+Linux needs `libasound2-dev`. For the web version: `rustup target add wasm32-unknown-unknown` and
+`cargo install wasm-bindgen-cli` (same version as in `Cargo.lock`).
 
-| Ordner | Inhalt |
+| Folder | Contents |
 |---|---|
-| `crates/core` | Audio dekodieren, Modell (tract/ONNX), Notenerkennung, Nachbearbeitung, MIDI/CSV/SVG/WAV |
-| `crates/app` | Oberfläche (egui), läuft nativ und als WebAssembly |
-| `crates/cli` | Kommandozeile |
-| `web/` | HTML-Gerüst der Web-Version |
-| `.github/workflows` | baut bei jedem Push die Web-Version (GitHub Pages) und die Programme für Windows, Linux und macOS |
+| `crates/core` | audio decoding, model (tract/ONNX), note detection, clean-up, post-processing, MIDI/CSV/SVG/WAV |
+| `crates/app` | user interface (egui), runs natively and as WebAssembly |
+| `crates/cli` | command line |
+| `web/` | HTML shell of the web version |
+| `.github/workflows` | builds the web version (GitHub Pages) and the programs for Windows, Linux and macOS on every push |
 
-## Tipps
+## Tips
 
-- Am besten klappt es mit **einem Instrument** oder einer klaren Melodie. Komplette Songs mit Schlagzeug werden ungenau.
-- Zu viele Geisternoten → *Noten-Schwelle* und *Einsatz-Schwelle* erhöhen.
-- Für Notensatzprogramme (MuseScore …): Quantisierung 1/16 und „In zwei Spuren teilen“.
+- It works best with **a single instrument** or a clear melody. Full songs with drums are less accurate.
+- Still too many stray notes → raise *Remove ghost notes*, or the *note threshold* and *onset threshold*.
+- Real notes missing → lower *Remove ghost notes* or the thresholds.
+- For notation software (MuseScore …): quantization 1/16 and “Split into two tracks”.
 
-Bitte nur Material verwenden, für das du die Rechte hast bzw. das die Nutzungsbedingungen der Plattform erlauben.
+Please only use material you have the rights to, or that the platform's terms of use allow.
 
-## Lizenz
+## License
 
-Apache-2.0. Das Erkennungsmodell stammt aus [spotify/basic-pitch](https://github.com/spotify/basic-pitch) (Apache-2.0).
+Apache-2.0. The detection model comes from [spotify/basic-pitch](https://github.com/spotify/basic-pitch) (Apache-2.0).
